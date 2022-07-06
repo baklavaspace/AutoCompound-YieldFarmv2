@@ -164,7 +164,7 @@ contract SyntheticPool is Initializable, UUPSUpgradeable, PausableUpgradeable, O
 
         uint256 estSystemCoinAmount;
         uint256 _synTokenPrice;
-        uint256 slippageTokenPrice;
+        // uint256 slippageTokenPrice;
 
         if(synTokenPriceDecimal == systemCoinDecimal) {
             _synTokenPrice = uint256(synTokenPrice);
@@ -175,17 +175,17 @@ contract SyntheticPool is Initializable, UUPSUpgradeable, PausableUpgradeable, O
         }
 
         if(orderType == 0) {
-            slippageTokenPrice = _synTokenPrice + (_synTokenPrice * pool.slippage / BIPS_DIVISOR);
-            require(_synTokenLimitPrice < slippageTokenPrice && _synTokenLimitPrice > 0, 'Invalid buy limit price');
-            estSystemCoinAmount = (synTokenAmount * _synTokenPrice) / (10 ** synTokenDecimal);
+            // slippageTokenPrice = _synTokenPrice + (_synTokenPrice * pool.slippage / BIPS_DIVISOR);
+            require(_synTokenLimitPrice < _synTokenPrice && _synTokenLimitPrice > 0, 'Invalid buy limit price');
+            estSystemCoinAmount = (synTokenAmount * _synTokenLimitPrice) / (10 ** synTokenDecimal);
             require(estSystemCoinAmount >= minSystemCoinTxAmount, "<minTxSysCoinAmount");
-            _openBuyOrder(pid, msg.sender, estSystemCoinAmount, synTokenAmount, _synTokenPrice);
+            _openBuyOrder(pid, msg.sender, estSystemCoinAmount, synTokenAmount, _synTokenLimitPrice);
         } else if(orderType ==1) {
-            slippageTokenPrice = _synTokenPrice - (_synTokenPrice * pool.slippage / BIPS_DIVISOR);
-            require(_synTokenLimitPrice > slippageTokenPrice, 'Invalid sell limit price');
-            estSystemCoinAmount = synTokenAmount * slippageTokenPrice / (10 ** synTokenDecimal);
+            // slippageTokenPrice = _synTokenPrice - (_synTokenPrice * pool.slippage / BIPS_DIVISOR);
+            require(_synTokenLimitPrice > _synTokenPrice, 'Invalid sell limit price');
+            estSystemCoinAmount = synTokenAmount * _synTokenLimitPrice / (10 ** synTokenDecimal);
             require(estSystemCoinAmount >= minSystemCoinTxAmount, "<minTxSysCoinAmount");
-            _openSellOrder(pid, msg.sender, estSystemCoinAmount, synTokenAmount, _synTokenPrice);
+            _openSellOrder(pid, msg.sender, estSystemCoinAmount, synTokenAmount, _synTokenLimitPrice);
         }
     }
 
