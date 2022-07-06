@@ -27,7 +27,6 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
     mapping(address => uint256) public poolId1;             // poolId1 count from 1, subtraction 1 before using with poolInfo
     mapping(address => bool) public authorized;             // Authorized Admins
     uint256 internal DEV_FEE_BIPS;                          // Borrow Fees
-    IDSOracle internal oracle;
     ISystemCoin internal systemCoin;
 
     // Interest Engine data
@@ -45,6 +44,7 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
 
     struct PoolInfo {
         IBRT collateralToken;               // BRT token address
+        IDSOracle oracle;                   // oracle to get collateralToken price
         uint256 collateralRate;             // Collateral ratio (E.g:2e18 => 200%, 3e18 => 300%), oracle price is 18 decimals
         uint256 totalAssetAmount;           // Pools total net minted system stable coin
         uint256 latestSettleTime;           // Latest time to settlement
@@ -102,28 +102,28 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
     /***************************
     * @dev INITIAL SETUP START
     ****************************/
-    function initContract(address _liqPool, address _reservePool, address _systemCoin, address _oracle, int256 _interestRate, uint256 _feeInterval, uint256 _DEV_FEE_BIPS, bool update) external onlyOwner{
+    function initContract(address _liqPool, address _reservePool, address _systemCoin, int256 _interestRate, uint256 _feeInterval, uint256 _DEV_FEE_BIPS, bool update) external onlyOwner{
         require(_liqPool != address(0),"A!=0");
         require(_reservePool != address(0),"A!=0");
         require(_systemCoin != address(0),"A!=0");
-        require(_oracle != address(0),"A!=0");
         require(_DEV_FEE_BIPS <= 10000,"Fee>=100%");
         liqPool = _liqPool;
         reservePool = _reservePool;
-        oracle = IDSOracle(_oracle);
         systemCoin = ISystemCoin(_systemCoin);
         DEV_FEE_BIPS = _DEV_FEE_BIPS;
         _setInterestInfo(_interestRate, _feeInterval, 12e26, 8e26, update);
     }
 
-    function add(IBRT _collateralToken, uint256 _collateralRate, uint256 _assetCeiling, uint256 _assetFloor, uint256 _liquidationPenalty) external onlyOwner {
+    function add(IBRT _collateralToken, address _oracle, uint256 _collateralRate, uint256 _assetCeiling, uint256 _assetFloor, uint256 _liquidationPenalty) external onlyOwner {
         require(address(_collateralToken) != address(0),"A!=0");
+        require(_oracle != address(0),"A!=0");
         require(poolId1[address(_collateralToken)] == 0, "coll.Token is in list");
         require(_collateralRate >= 1e18 && _collateralRate <= 5e18 ,"Collateral rate overflow!");
         require(_liquidationPenalty <= 5e17 && (calDecimals+_liquidationPenalty) <= _collateralRate,"Liquidate overflow!");
         poolId1[address(_collateralToken)] = poolLength + 1;
         poolInfo[poolLength] = PoolInfo({
             collateralToken : _collateralToken,
+            oracle : IDSOracle(_oracle),
             collateralRate : _collateralRate,
             totalAssetAmount : 0,
             latestSettleTime : block.timestamp,
@@ -207,7 +207,7 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
         emit BorrowSystemCoin(pid, msg.sender, account, amount);
     }
 
-    function _repaySystemCoin(uint256 pid, address account, uint256 amount) internal{
+    function _repaySystemCoin(uint256 pid, address account, uint256 amount) internal {
         uint256 _repayDebt = subAsset(pid, account, amount);
         if(amount>_repayDebt){
             systemCoin.safeTransferFrom(msg.sender, liqPool, amount - _repayDebt);       // Interest of loan
@@ -221,7 +221,7 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
     function _liquidate(uint256 pid, address account) internal {
         PoolInfo storage pool = poolInfo[pid];
 
-        (,uint256 collateralPrice) = oraclePrice(address(pool.collateralToken));        // colateralPrice in 1e18
+        (,uint256 collateralPrice) = oraclePrice(pid, address(pool.collateralToken));        // colateralPrice in 1e18
         uint256 collateral = collateralBalances[pid][account];
         uint256 allDebt = assetInfoMap[pid][account].assetAndInterest;
         uint256 penalty = allDebt * pool.liquidationPenalty / calDecimals;
@@ -246,14 +246,14 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
     function canLiquidate(uint256 pid, address account) external view returns (bool) {
         PoolInfo storage pool = poolInfo[pid];
         uint256 assetAndInterest = getAssetBalance(pid, account);
-        (, uint256 collateralPrice) = oraclePrice(address(pool.collateralToken));
+        (, uint256 collateralPrice) = oraclePrice(pid, address(pool.collateralToken));
         uint256 allCollateral = collateralBalances[pid][account] * (collateralPrice);
         return assetAndInterest * (pool.collateralRate) > allCollateral;
     }
 
     function checkLiquidate(uint256 pid, address account, uint256 removeCollateral, uint256 newMint) internal view returns(bool) {
         PoolInfo storage pool = poolInfo[pid];
-        (bool inTol, uint256 collateralPrice) = oraclePrice(address(pool.collateralToken));
+        (bool inTol, uint256 collateralPrice) = oraclePrice(pid, address(pool.collateralToken));
         require(inTol, "Oracle price is abnormal!");
         uint256 allCollateral = (collateralBalances[pid][account] - removeCollateral) * (collateralPrice);
         uint256 assetAndInterest = assetInfoMap[pid][account].assetAndInterest + (newMint);
@@ -379,7 +379,7 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
         }
     }
 
-    function settleUserInterest(uint256 pid, address account) internal{
+    function settleUserInterest(uint256 pid, address account) internal {
         PoolInfo storage pool = poolInfo[pid];
         assetInfoMap[pid][account].assetAndInterest = _settlement(pid, account);
         assetInfoMap[pid][account].interestRateOrigin = pool.accumulatedRate;
@@ -399,19 +399,23 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
     /*******************************
     * @dev Oracle Engine FUNCTIONS
     ********************************/
-    function oraclePrice(address asset) internal view returns (bool,uint256){
-        (bool inTol,uint256 price) = oracle.getBRTPrice(asset);
+    function oraclePrice(uint256 pid, address asset) internal view returns (bool,uint256) {
+        PoolInfo memory pool = poolInfo[pid];
+        (bool inTol,uint256 price) = pool.oracle.getBRTPrice(asset);
         require(price >= 100 && price <= 1e45,"oracle price error");
         return (inTol,price);
     }
 
-    function oracleLpPrice(address asset) external view returns (bool,uint256){
-        (bool inTol,uint256 price) = oracle.getPriceInfo(asset);
+    function oracleLpPrice(uint256 pid, address asset) external view returns (bool,uint256) {
+        PoolInfo memory pool = poolInfo[pid];
+        (bool inTol,uint256 price) = pool.oracle.getPriceInfo(asset);
         return (inTol,price);
     }
 
-    function setOracleAddress(address _oracle) external onlyOwner{
-        oracle = IDSOracle(_oracle);
+    function setOracleAddress(uint256 pid, address _oracle) external onlyOwner {
+        require(_oracle != address(0),"A!=0");
+        PoolInfo storage pool = poolInfo[pid];
+        pool.oracle = IDSOracle(_oracle);
     }
 
     /*****************************************
@@ -421,22 +425,23 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
         return poolLength;
     }
 
-    function getOracleAddress() external view returns(address){
-        return address(oracle);
+    function getOracleAddress(uint256 pid) external view returns(address) {
+        PoolInfo memory pool = poolInfo[pid];
+        return address(pool.oracle);
     }
 
-    function getInterestInfo() external view returns(int256,uint256){
+    function getInterestInfo() external view returns(int256,uint256) {
         return (interestRate, interestInterval);
     }
 
-    function getSystemCoin() external view returns(address){
+    function getSystemCoin() external view returns(address) {
         return address(systemCoin);
     }
 
     function getMaxBorrowAmount(uint256 pid, address account, uint256 newAddCollateral) external view returns(uint256) {
         PoolInfo storage pool = poolInfo[pid];
         uint256 allDebt = getAssetBalance(pid, account);
-        (, uint256 collateralPrice) = oraclePrice(address(pool.collateralToken));
+        (, uint256 collateralPrice) = oraclePrice(pid, address(pool.collateralToken));
         uint256 newBorrow = (collateralBalances[pid][account] + newAddCollateral) * collateralPrice / pool.collateralRate;
         if (newBorrow > allDebt) {
             return newBorrow - allDebt;
@@ -467,7 +472,7 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
         emit SetPoolCollateralRate(msg.sender, _collateralRate);
     }
 
-    function setLiquidationInfo(uint256 pid, uint256 newLiquidationPenalty) external onlyOwner{
+    function setLiquidationInfo(uint256 pid, uint256 newLiquidationPenalty) external onlyOwner {
         _setLiquidationInfo(pid ,newLiquidationPenalty);
     }
 
@@ -498,7 +503,7 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
         authorized[_toRemove] = false;
     }
 
-    function setEmergency() external whenPaused onlyOwner{
+    function setEmergency() external whenPaused onlyOwner {
         emergencyStart = block.timestamp + 1 days;
         emit SetEmergency(msg.sender,emergencyStart);
     }
