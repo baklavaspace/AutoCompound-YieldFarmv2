@@ -160,29 +160,29 @@ contract SyntheticPool is Initializable, UUPSUpgradeable, PausableUpgradeable, O
         uint256 synTokenDecimal = pool.syntheticToken.decimals();
         uint256 systemCoinDecimal = systemCoin.decimals();
         uint256 synTokenPriceDecimal = pool.oracleChainlink.decimals();
-        ( ,int256 synTokenPrice, , , ) = pool.oracleChainlink.latestRoundData();
+        ( ,int256 currentStockPrice, , , ) = pool.oracleChainlink.latestRoundData();
 
         uint256 estSystemCoinAmount;
-        uint256 _synTokenPrice;
+        uint256 _currentStockPrice;
         // uint256 slippageTokenPrice;
 
         if(synTokenPriceDecimal == systemCoinDecimal) {
-            _synTokenPrice = uint256(synTokenPrice);
+            _currentStockPrice = uint256(currentStockPrice);
         } else if(synTokenPriceDecimal > systemCoinDecimal) {
-            _synTokenPrice = uint256(synTokenPrice) / (10 ** (synTokenPriceDecimal - systemCoinDecimal));
+            _currentStockPrice = uint256(currentStockPrice) / (10 ** (synTokenPriceDecimal - systemCoinDecimal));
         } else if(synTokenPriceDecimal < systemCoinDecimal) {
-            _synTokenPrice = uint256(synTokenPrice) * (10 ** (systemCoinDecimal - synTokenPriceDecimal));
+            _currentStockPrice = uint256(currentStockPrice) * (10 ** (systemCoinDecimal - synTokenPriceDecimal));
         }
 
         if(orderType == 0) {
             // slippageTokenPrice = _synTokenPrice + (_synTokenPrice * pool.slippage / BIPS_DIVISOR);
-            require(_synTokenLimitPrice < _synTokenPrice && _synTokenLimitPrice > 0, 'Invalid buy limit price');
+            require(_synTokenLimitPrice < _currentStockPrice && _synTokenLimitPrice > 0, 'Invalid buy limit price');
             estSystemCoinAmount = (synTokenAmount * _synTokenLimitPrice) / (10 ** synTokenDecimal);
             require(estSystemCoinAmount >= minSystemCoinTxAmount, "<minTxSysCoinAmount");
             _openBuyOrder(pid, msg.sender, estSystemCoinAmount, synTokenAmount, _synTokenLimitPrice);
         } else if(orderType ==1) {
             // slippageTokenPrice = _synTokenPrice - (_synTokenPrice * pool.slippage / BIPS_DIVISOR);
-            require(_synTokenLimitPrice > _synTokenPrice, 'Invalid sell limit price');
+            require(_synTokenLimitPrice > _currentStockPrice, 'Invalid sell limit price');
             estSystemCoinAmount = synTokenAmount * _synTokenLimitPrice / (10 ** synTokenDecimal);
             require(estSystemCoinAmount >= minSystemCoinTxAmount, "<minTxSysCoinAmount");
             _openSellOrder(pid, msg.sender, estSystemCoinAmount, synTokenAmount, _synTokenLimitPrice);
@@ -197,26 +197,26 @@ contract SyntheticPool is Initializable, UUPSUpgradeable, PausableUpgradeable, O
         PoolInfo storage pool = poolInfo[pid];
         uint256 systemCoinDecimal = systemCoin.decimals();
         uint256 synTokenPriceDecimal = pool.oracleChainlink.decimals();
-        ( ,int256 synTokenPrice, , , ) = pool.oracleChainlink.latestRoundData();
+        ( ,int256 currentStockPrice, , , ) = pool.oracleChainlink.latestRoundData();
 
-        uint256 _synTokenPrice;
+        uint256 _currentStockPrice;
         uint256 slippageTokenPrice;    
 
         if(synTokenPriceDecimal == systemCoinDecimal) {
-            _synTokenPrice = uint256(synTokenPrice);
+            _currentStockPrice = uint256(currentStockPrice);
         } else if(synTokenPriceDecimal > systemCoinDecimal) {
-            _synTokenPrice = uint256(synTokenPrice) / (10 ** (synTokenPriceDecimal - systemCoinDecimal));
+            _currentStockPrice = uint256(currentStockPrice) / (10 ** (synTokenPriceDecimal - systemCoinDecimal));
         } else if(synTokenPriceDecimal < systemCoinDecimal) {
-            _synTokenPrice = uint256(synTokenPrice) * (10 ** (systemCoinDecimal - synTokenPriceDecimal));
+            _currentStockPrice = uint256(currentStockPrice) * (10 ** (systemCoinDecimal - synTokenPriceDecimal));
         }
 
         if(order.orderType == 0) {
             slippageTokenPrice = order.synTokenPrice - (order.synTokenPrice * pool.slippage / BIPS_DIVISOR);
-            require(_synTokenPrice <= slippageTokenPrice,"< token limit price");
+            require(_currentStockPrice <= slippageTokenPrice,"< token limit price");
             _mintSynToken(pid, _orderId);
         } else if(order.orderType == 1) {
             slippageTokenPrice = order.synTokenPrice + (order.synTokenPrice * pool.slippage / BIPS_DIVISOR);
-            require(_synTokenPrice >= slippageTokenPrice,"< token limit price");
+            require(_currentStockPrice >= slippageTokenPrice,"< token limit price");
             _burnSynToken(pid, _orderId);
         }
     }
