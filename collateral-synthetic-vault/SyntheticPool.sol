@@ -164,7 +164,6 @@ contract SyntheticPool is Initializable, UUPSUpgradeable, PausableUpgradeable, O
 
         uint256 estSystemCoinAmount;
         uint256 _currentStockPrice;
-        // uint256 slippageTokenPrice;
 
         if(synTokenPriceDecimal == systemCoinDecimal) {
             _currentStockPrice = uint256(currentStockPrice);
@@ -175,13 +174,11 @@ contract SyntheticPool is Initializable, UUPSUpgradeable, PausableUpgradeable, O
         }
 
         if(orderType == 0) {
-            // slippageTokenPrice = _synTokenPrice + (_synTokenPrice * pool.slippage / BIPS_DIVISOR);
             require(_synTokenLimitPrice < _currentStockPrice && _synTokenLimitPrice > 0, 'Invalid buy limit price');
             estSystemCoinAmount = (synTokenAmount * _synTokenLimitPrice) / (10 ** synTokenDecimal);
             require(estSystemCoinAmount >= minSystemCoinTxAmount, "<minTxSysCoinAmount");
             _openBuyOrder(pid, msg.sender, estSystemCoinAmount, synTokenAmount, _synTokenLimitPrice);
         } else if(orderType ==1) {
-            // slippageTokenPrice = _synTokenPrice - (_synTokenPrice * pool.slippage / BIPS_DIVISOR);
             require(_synTokenLimitPrice > _currentStockPrice, 'Invalid sell limit price');
             estSystemCoinAmount = synTokenAmount * _synTokenLimitPrice / (10 ** synTokenDecimal);
             require(estSystemCoinAmount >= minSystemCoinTxAmount, "<minTxSysCoinAmount");
