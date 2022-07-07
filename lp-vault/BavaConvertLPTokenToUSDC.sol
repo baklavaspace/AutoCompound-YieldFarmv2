@@ -204,8 +204,8 @@ contract BavaConvertLPToUSDC is Initializable, UUPSUpgradeable, OwnableUpgradeab
     function initialize(address _liqaddr) public initializer {
         require(_liqaddr != address(0), "A!=0");
         liqaddr = _liqaddr;
-        WAVAX = IERC20Upgradeable(0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7);     // 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7
-        USDCE = IERC20Upgradeable(0xA7D7079b0FEaD91F3e65f86E8915Cb59c1a4C664);     // 0xA7D7079b0FEaD91F3e65f86E8915Cb59c1a4C664
+        WAVAX = IERC20Upgradeable(0x52B654763F016dAF087d163c9EB6c7F486261019);     // 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7
+        USDCE = IERC20Upgradeable(0x056e7f6c7bf70F25cd3E51F4fc3a153204D6Df5c);     // 0xA7D7079b0FEaD91F3e65f86E8915Cb59c1a4C664
         BIPS_DIVISOR = 10000;
 
         __Ownable_init();

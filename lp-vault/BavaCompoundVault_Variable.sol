@@ -596,7 +596,7 @@ contract BavaCompoundVault_Variable is Initializable, UUPSUpgradeable, BRTERC20U
         blockDeltaEndStage = _blockDeltaEndStage;
         userFeeStage = _userFeeStage;
         
-        WAVAX = IERC20Upgradeable(0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7);     // 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7 in mainnet
+        WAVAX = IERC20Upgradeable(0x52B654763F016dAF087d163c9EB6c7F486261019);     // 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7 in mainnet
         BIPS_DIVISOR = 10000;
 
         __ERC20_init(name_, symbol_);
