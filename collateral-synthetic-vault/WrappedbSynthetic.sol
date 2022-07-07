@@ -270,14 +270,14 @@ contract WrappedbSynthetic is Initializable, UUPSUpgradeable, PausableUpgradeabl
     /**************************************************************
      * @dev Initialize smart contract functions - only called once
      *************************************************************/
-    function initialize() public initializer {
+    function initialize(string calldata tokenName, string calldata tokenSymbol) public initializer {
 
-        _name = "Wrapped Baklava BTC Token";
-        _symbol = "bBTC";
+        _name = tokenName;
+        _symbol = tokenSymbol;
         _totalSupply = 0;
         _tokenStockSplitIndex = 0;
         _stockSplitRatio[0] = 1000;
-        BIPS_DIVISOR = 1000;
+        BIPS_DIVISOR = 10000;
 
         __Pausable_init();
         __Ownable_init();
