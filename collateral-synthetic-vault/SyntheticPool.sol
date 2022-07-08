@@ -63,8 +63,8 @@ contract SyntheticPool is Initializable, UUPSUpgradeable, PausableUpgradeable, O
 
     event SetEmergency(address indexed sender, uint256 emergencyStart);
     event OpenOrder(uint256 indexed pid, uint256 indexed orderType, uint256 orderId, address indexed account, uint256 systemCoinAmount , uint256 synTokenAmount , uint256 synTokenPrice);
-    event MintSynToken(uint256 indexed pid, address indexed sender, address indexed account, uint256 systemCoinAmount, uint256 synTokenAmount, uint256 synTokenPrice);
-    event BurnSynToken(uint256 indexed pid, address indexed sender, address indexed account, uint256 systemCoinAmount, uint256 synTokenAmount, uint256 synTokenPrice);
+    event MintSynToken(uint256 indexed pid, uint256 orderId, address indexed sender, address indexed account, uint256 systemCoinAmount, uint256 synTokenAmount, uint256 synTokenPrice);
+    event BurnSynToken(uint256 indexed pid, uint256 orderId, address indexed sender, address indexed account, uint256 systemCoinAmount, uint256 synTokenAmount, uint256 synTokenPrice);
     event CancelOrder(uint256 pid, uint256 orderId, address account);
     event UpdateOrder(uint256 pid, uint256 orderId, uint256 systemCoinAmount, uint256 synTokenAmount);
     event PoolsEnabled(uint256 pid, bool newMintsEnabled, bool newBurnsEnabled);
@@ -311,7 +311,7 @@ contract SyntheticPool is Initializable, UUPSUpgradeable, PausableUpgradeable, O
         totalTxAmount += order.systemCoinAmount;
         pool.syntheticToken.mint(order.account, order.synTokenAmount);
 
-        emit MintSynToken(pid, msg.sender, order.account, order.systemCoinAmount ,order.synTokenAmount, order.synTokenPrice);
+        emit MintSynToken(pid, order.orderId, msg.sender, order.account, order.systemCoinAmount ,order.synTokenAmount, order.synTokenPrice);
     }
 
     function _burnSynToken(uint256 pid, uint256 _orderId) internal {
@@ -333,7 +333,7 @@ contract SyntheticPool is Initializable, UUPSUpgradeable, PausableUpgradeable, O
             USBPool.borrowUSB(order.systemCoinAmount - systemCoinBalance);
             systemCoin.safeTransfer(order.account, order.systemCoinAmount);
         }
-        emit BurnSynToken(pid, msg.sender, order.account, order.systemCoinAmount, order.synTokenAmount, order.synTokenPrice);
+        emit BurnSynToken(pid, order.orderId, msg.sender, order.account, order.systemCoinAmount, order.synTokenAmount, order.synTokenPrice);
     }
     
     function _cancelOrder(uint256 pid, uint256 _orderId) internal {
