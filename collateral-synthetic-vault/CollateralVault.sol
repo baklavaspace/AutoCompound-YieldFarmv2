@@ -9,14 +9,14 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import "./interface/IBRT.sol";
+import "./interface/IBRTVault.sol";
 import "./interface/ISystemCoin.sol";
 import "./interface/IDSOracle.sol";
 
 contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
     using SafeERC20Upgradeable for IERC20Upgradeable;
-    using SafeERC20Upgradeable for IBRT;
+    using SafeERC20Upgradeable for IBRTVault;
     using SafeERC20Upgradeable for ISystemCoin;
 
     // Contract general data 
@@ -43,7 +43,7 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
     mapping(uint256 => mapping(address => uint256)) public collateralBalances;    // user BRT token collateral amount
 
     struct PoolInfo {
-        IBRT collateralToken;               // BRT token address
+        IBRTVault collateralToken;          // BRT token address
         IDSOracle oracle;                   // oracle to get collateralToken price
         uint256 collateralRate;             // Collateral ratio (E.g:2e18 => 200%, 3e18 => 300%), oracle price is 18 decimals
         uint256 totalAssetAmount;           // Pools total net minted system stable coin
@@ -114,7 +114,7 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
         _setInterestInfo(_interestRate, _feeInterval, 12e26, 8e26, update);
     }
 
-    function add(IBRT _collateralToken, address _oracle, uint256 _collateralRate, uint256 _assetCeiling, uint256 _assetFloor, uint256 _liquidationPenalty) external onlyOwner {
+    function add(IBRTVault _collateralToken, address _oracle, uint256 _collateralRate, uint256 _assetCeiling, uint256 _assetFloor, uint256 _liquidationPenalty) external onlyOwner {
         require(address(_collateralToken) != address(0),"A!=0");
         require(_oracle != address(0),"A!=0");
         require(poolId1[address(_collateralToken)] == 0, "coll.Token is in list");
@@ -190,7 +190,7 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
     ********************************/
     function _join(uint256 pid, address account, uint256 amount) internal {
         PoolInfo storage pool = poolInfo[pid];
-        (uint256 userCompoundReceipt, , , , , , ) = pool.collateralToken.userInfo(account);
+        (uint256 userCompoundReceipt, , , ) = pool.collateralToken.userInfo(account);
         require(pool.depositEnabled == true, "Dep N/A");
         require(userCompoundReceipt >= (amount+collateralBalances[pid][account]));
         pool.collateralToken.safeTransferFrom(msg.sender, address(this), amount);
