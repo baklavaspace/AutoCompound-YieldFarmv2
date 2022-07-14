@@ -33,7 +33,7 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
     uint256 internal rayDecimals;                           // 1e27
     uint256 internal interestInterval;                      // 3600s/1hr
     int256 internal interestRate;                           // Interest for loan(1%/yr, value convert to in hrs)
-    mapping(uint256 => mapping(address => assetInfo)) public assetInfoMap;  // User Debt balance(stable coin) **Pid=>User's Address=>StableCoinAsset
+    mapping(uint256 => mapping(address => assetInfo)) public assetInfoMap;  // User Debt balance(stable coin) **Pid=>User's Address => StableCoinAsset
 
     // Collateral Vault Engine data
     uint256 public emergencyStart;                          // For emergency exit loan position(after 3 day)
@@ -41,6 +41,10 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
     address public liqPool;
     address public reservePool;
     mapping(uint256 => mapping(address => uint256)) public collateralBalances;    // user BRT token collateral amount
+
+    // Collateral User addresses data
+    mapping(uint256 => address[]) private borrowersAddresses;               // Pid => borrowerAddresses list
+    mapping(uint256 => mapping(address => bool)) private addedBorrower;     // Pid => borrowerAddress => addedintoArray(true=added, false=not added)
 
     struct PoolInfo {
         IBRTVault collateralToken;          // BRT token address
@@ -151,6 +155,7 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
     }
 
     function borrowSystemCoin(uint256 pid, address account, uint256 amount) whenNotPaused nonReentrant settleAccount(pid, msg.sender) external {
+        require(amount > 0, 'amount<0');
         _borrowSystemCoin(pid, account, amount);
     }
 
@@ -204,6 +209,10 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
         systemCoin.mint(account, amount-borrowFees);
         systemCoin.mint(reservePool, borrowFees);
         addAsset(pid, msg.sender, amount);
+        if(addedBorrower[pid][msg.sender] == false) {
+            borrowersAddresses[pid].push(msg.sender);
+            addedBorrower[pid][msg.sender] = true;
+        }
         emit BorrowSystemCoin(pid, msg.sender, account, amount);
     }
 
@@ -436,6 +445,10 @@ contract CollateralVault is Initializable, UUPSUpgradeable, PausableUpgradeable,
 
     function getSystemCoin() external view returns(address) {
         return address(systemCoin);
+    }
+
+    function getBorrowersAddressesList(uint256 pid) external view returns(address [] memory) {
+        return borrowersAddresses[pid];
     }
 
     function getMaxBorrowAmount(uint256 pid, address account, uint256 newAddCollateral) external view returns(uint256) {
