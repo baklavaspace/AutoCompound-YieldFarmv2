@@ -133,7 +133,7 @@ contract USBSwapLocker is Initializable, UUPSUpgradeable, PausableUpgradeable, O
     function vestCompletedSchedulesForMultipleTokens(IERC20Upgradeable[] calldata tokens) external nonReentrant returns (uint256[] memory vestedAmounts) {
         vestedAmounts = new uint256[](tokens.length);
         for (uint256 i = 0; i < tokens.length; i++) {
-            vestedAmounts[i] = vestCompletedSchedules(tokens[i]);
+            vestedAmounts[i] = _vestCompletedSchedules(tokens[i]);
         }
     }
 
@@ -141,25 +141,8 @@ contract USBSwapLocker is Initializable, UUPSUpgradeable, PausableUpgradeable, O
     * @dev Allow a user to vest all ended schedules
     */
     function vestCompletedSchedules(IERC20Upgradeable token) public nonReentrant returns (uint256) {
-        VestingSchedules storage schedules = accountVestingSchedules[msg.sender][token];
-        uint256 schedulesLength = schedules.length;
-
         uint256 totalVesting = 0;
-        for (uint256 i = 0; i < schedulesLength; i++) {
-            VestingSchedule memory schedule = schedules.data[i];
-            if (_getBlockTime() < schedule.endTime) {
-            continue;
-            }
-            uint256 vestQuantity = uint256(schedule.quantity) - (schedule.vestedQuantity);
-            if (vestQuantity == 0) {
-            continue;
-            }
-            schedules.data[i].vestedQuantity = schedule.quantity;
-            totalVesting = totalVesting + (vestQuantity);
-
-            emit Vested(token, msg.sender, vestQuantity, i);
-        }
-        _completeVesting(token, totalVesting);
+        totalVesting = _vestCompletedSchedules(token);
 
         return totalVesting;
     }
@@ -250,17 +233,46 @@ contract USBSwapLocker is Initializable, UUPSUpgradeable, PausableUpgradeable, O
 
     /* ==================== INTERNAL FUNCTIONS ==================== */
 
+    /**
+    * @dev Allow a user to vest all ended schedules
+    */
+    function _vestCompletedSchedules(IERC20Upgradeable token) internal returns (uint256) {
+        VestingSchedules storage schedules = accountVestingSchedules[msg.sender][token];
+        uint256 schedulesLength = schedules.length;
+
+        uint256 totalVesting = 0;
+        for (uint256 i = 0; i < schedulesLength; i++) {
+            VestingSchedule memory schedule = schedules.data[i];
+            if (_getBlockTime() < schedule.endTime) {
+            continue;
+            }
+            uint256 vestQuantity = uint256(schedule.quantity) - (schedule.vestedQuantity);
+            if (vestQuantity == 0) {
+            continue;
+            }
+            schedules.data[i].vestedQuantity = schedule.quantity;
+            totalVesting = totalVesting + (vestQuantity);
+
+            emit Vested(token, msg.sender, vestQuantity, i);
+        }
+        _completeVesting(token, totalVesting);
+
+        return totalVesting;
+    }
+
     function _completeVesting(IERC20Upgradeable token, uint256 totalVesting) internal {
         require(totalVesting != 0, '0 vesting amount');
         require(address(token) != address(0), 'address!=0');
-        uint256 liquidity = token.balanceOf(address(this));
-        require(liquidity >= totalVesting, "Insuffient liq");
         accountEscrowedBalance[msg.sender][token] = accountEscrowedBalance[msg.sender][token] - (totalVesting);
         accountVestedBalance[msg.sender][token] = accountVestedBalance[msg.sender][token] + (totalVesting);
 
+        uint256 liquidity = token.balanceOf(address(this));
+        // require(liquidity >= totalVesting, "Insuffient liq");
         // Transfer token from swap contract to lock contract
-        // address swapContracts = swapContractsPerToken[token].at(0);
-        // token.safeTransferFrom(swapContracts, address(this), quantity);
+        if(totalVesting > liquidity) {
+            address swapContracts = swapContractsPerToken[token].at(0);
+            token.safeTransferFrom(swapContracts, address(this), totalVesting-liquidity);
+        }
         token.safeTransfer(msg.sender, totalVesting);
     }
 
